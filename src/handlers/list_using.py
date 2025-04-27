@@ -70,7 +70,8 @@ async def _render_page(message: Message, tg_user_id: int, state: FSMContext):
         user: Optional[User] = db.query(User).filter(User.user_id == str(tg_user_id)).first()
         if not user:
             new_user = str(message.from_user.id)
-            user_db.add_user(new_user)
+            name_user = str(message.from_user.full_name)
+            user_db.add_user(new_user, name_user)
             user: Optional[User] = db.query(User).filter(User.user_id == str(tg_user_id)).first()
 
         repo = WishListRepository(db)
@@ -158,7 +159,7 @@ async def open_my_wl(callback: CallbackQuery, state: FSMContext):
     await state.set_state(FSMwishlist.my_wl)
     await state.update_data(my_wl=wl_id)
     wish_list = wishlist_db.get_wishlist_by_id(wl_id)
-    texts = f"Вот твой лист\nИмя: {wish_list['name']}\nТип: {wish_list['list_type']}\n"
+    texts = f"Вот виш-лист\nИмя: {wish_list['name']}\n"
     items = wishlistitem_db.list_items_by_wishlist(wl_id)
     celery_markup = []
     for i in items:
@@ -206,7 +207,7 @@ async def del_my_good_from_lenta(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     wl_id = data["my_wl"]
     status = wishlistitem_db.get_status_by_celery_id(celery_id)
-    if status:
+    if status != "active":
         await callback.answer(
         text="Не советуем его удалять (намек)",
         show_alert=True  # False для верхнего уведомления
@@ -215,7 +216,7 @@ async def del_my_good_from_lenta(callback: CallbackQuery, state: FSMContext):
     else:
         wishlistitem_db.remove_item(celery_id)
         wish_list = wishlist_db.get_wishlist_by_id(wl_id)
-        texts = f"Вот твой лист\nИмя: {wish_list['name']}\nТип: {wish_list['list_type']}\n"
+        texts = f"Вот виш-лист\nИмя: {wish_list['name']}\n\n"
         items = wishlistitem_db.list_items_by_wishlist(wl_id)
         celery_markup = []
         for i in items:

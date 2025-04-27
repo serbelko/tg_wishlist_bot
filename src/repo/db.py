@@ -60,13 +60,13 @@ class UserRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def add_user(self, user_id: str) -> dict:
+    def add_user(self, user_id: str, name: str) -> dict:
         try:
             user = self.db.query(User).filter(User.user_id == user_id).first()
             if user:
                 return user.to_dict()
             
-            new_user = User(user_id=user_id)
+            new_user = User(user_id=user_id, name=name)
             self.db.add(new_user)
             self.db.commit()
             self.db.refresh(new_user)
@@ -101,7 +101,7 @@ class UserRepository:
     def list_all_users(self) -> List[dict]:
         """Возвращает список всех пользователей в виде словарей"""
         users = self.db.query(User).all()
-        plan_lst = [[plan.user_id, plan.user_id] for plan in users]
+        plan_lst = [[plan.user_id, plan.name] for plan in users]
         return [len(plan_lst), plan_lst]
 
 class WishListRepository:
@@ -154,12 +154,15 @@ class WishListRepository:
         return self.db.query(func.count()).filter(WishList.user_id == user_id).scalar()
 
     def list_wishlists_by_user_page(self, user_id: str, 
-                                  limit: int, offset: int) -> List[dict]:
+                                 limit: int, offset: int) -> List[dict]:
         return [wl.to_dict() for wl in self.db.query(WishList)
-                             .filter(WishList.user_id == user_id)
-                             .limit(limit)
-                             .offset(offset)
-                             .all()]
+                                .filter(
+                                    WishList.user_id == user_id,
+                                    WishList.list_type != 'private_choose'
+                                )
+                                .limit(limit)
+                                .offset(offset)
+                                .all()]
 
 class WishListItemRepository:
     def __init__(self, db: Session):

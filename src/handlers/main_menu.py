@@ -43,17 +43,17 @@ async def start(message: types.Message, state: FSMContext):
     ])
 
     new_user = str(message.from_user.id)
-    user_db.add_user(new_user)
+    name_user = str(message.from_user.full_name)
+    user_db.add_user(new_user, name_user)
     await message.answer(ALL_TEXT['start_text'], reply_markup=markup)
     await state.clear()
 
 
 @base_router.callback_query(F.data == 'check_users_callback')
-async def my_scenes(callback: CallbackQuery, state: FSMContext):
+async def all_my_users_data(callback: CallbackQuery, state: FSMContext):
     user_id = str(callback.from_user.id)
     scenes = user_db.list_all_users()
 
-    # Если нет сценариев
     if scenes[0] == 0:
         markup = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Назад", callback_data='back')]
@@ -78,12 +78,12 @@ async def my_scenes(callback: CallbackQuery, state: FSMContext):
         keyboard_build = []
         for key in scenes[1][:3]:
             keyboard_build.append(
-                [InlineKeyboardButton(text=key[0], callback_data=f"get_pg_{str(key[1])}")]
+                [InlineKeyboardButton(text=key[1], callback_data=f"get_pg_{str(key[0])}")]
             )
 
         all_list = keyboard_build + pag_markup
 
-        choose_scenario = "Выберите клиента"
+        choose_scenario = ALL_TEXT["choose_user"]
         await callback.message.edit_text(choose_scenario, reply_markup=InlineKeyboardMarkup(inline_keyboard=all_list))
         await callback.answer()
 
@@ -99,7 +99,7 @@ async def plus_pag(callback: CallbackQuery, state: FSMContext):
 
     if pages_total <= current_page:
         # уже последняя страница
-        no_next_page_text = "ценок"
+        no_next_page_text = "Дальше пользователей нет"
         await callback.answer(no_next_page_text, show_alert=True)
     else:
         new_page = current_page + 1
@@ -117,11 +117,11 @@ async def plus_pag(callback: CallbackQuery, state: FSMContext):
         end_idx = 3 * new_page
         for key in scenes[1][start_idx:end_idx]:
             keyboard_build.append(
-                [InlineKeyboardButton(text=key[0], callback_data=f"get_pg_{str(key[1])}")]
+                [InlineKeyboardButton(text=key[1], callback_data=f"get_pg_{str(key[0])}")]
             )
 
         all_list = keyboard_build + pag_markup
-        choose_scenario = "Выберите сценарий"
+        choose_scenario = "Выберите пользователя"
         await callback.message.edit_text(choose_scenario, reply_markup=InlineKeyboardMarkup(inline_keyboard=all_list))
     await callback.answer()
 
@@ -136,7 +136,7 @@ async def minus_pag(callback: CallbackQuery, state: FSMContext):
     pages_total = scenes[0] // 3 + 1
 
     if current_page <= 1:
-        no_prev_page_text = "нельзя листать"
+        no_prev_page_text = "Уже меньше нуля"
         await callback.answer(no_prev_page_text, show_alert=True)
     else:
         new_page = current_page - 1
@@ -154,7 +154,7 @@ async def minus_pag(callback: CallbackQuery, state: FSMContext):
         end_idx = 3 * new_page
         for key in scenes[1][start_idx:end_idx]:
             keyboard_build.append(
-                [InlineKeyboardButton(text=key[0], callback_data=f"get_pg_{str(key[1])}")]
+                [InlineKeyboardButton(text=key[1], callback_data=f"get_pg_{str(key[0])}")]
             )
 
         all_list = keyboard_build + pag_markup
@@ -166,11 +166,14 @@ async def minus_pag(callback: CallbackQuery, state: FSMContext):
 @base_router.callback_query(F.data=="back")
 async def start_callback(callback: CallbackQuery, state: FSMContext):
     user_id = str(callback.from_user.id)
-    await callback.message.edit_reply_markup(reply_markup=None)
 
-    start_text = "Ща исправим"
-    await callback.message.edit_text(start_text,)
-    await callback.answer()
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=ALL_BUTTON["create_list"], callback_data="create_list_callback")],
+        [InlineKeyboardButton(text=ALL_BUTTON["check_my_list"], callback_data="my_list_callback")],
+        [InlineKeyboardButton(text=ALL_BUTTON["check_users"], callback_data="check_users_callback")]
+    ])
+
+    await callback.message.edit_text(ALL_TEXT['start_text'], reply_markup=markup)
     await state.clear()
 
 
@@ -279,7 +282,7 @@ async def _render_page(message: Message, user_id: int, state: FSMContext):
         # Формирование текста
         text = "Ваши списки:" if slice_ else "У этого пользователя пока нет списков."
         if slice_:
-            text = "Вот твои списки"
+            text = "Вот все списки"
 
         # Формирование клавиатуры
         inline_keyboard = []
@@ -288,7 +291,7 @@ async def _render_page(message: Message, user_id: int, state: FSMContext):
         for wl in slice_:
             inline_keyboard.append([
                 InlineKeyboardButton(
-                    text=f"📋 {wl['name']} ({wl['list_type']})",
+                    text=f"📋 {wl['name']}",
                     callback_data=f"wl_p{wl['id']}"
                 )
             ])
@@ -349,7 +352,7 @@ async def open_my_wl(callback: CallbackQuery, state: FSMContext):
     wl_id = str(callback.data).replace("wl_p", "", 1)
     await state.update_data(user_list=wl_id)
     wish_list = wishlist_db.get_wishlist_by_id(wl_id)
-    texts = f"Вот лист этого пользователя\nНазвание списка: {wish_list['name']}\nТип: {wish_list['list_type']}\n "
+    texts = f"Вот лист этого пользователя\nНазвание списка: {wish_list['name']}\n\n "
     items = wishlistitem_db.list_items_by_wishlist(wl_id)
     celery_markup = []
     for i in items:
@@ -380,29 +383,35 @@ async def choose_what_to_do(callback: CallbackQuery, state: FSMContext):
     await state.update_data(new_celery=wl_id)
     markup = [[InlineKeyboardButton(text="Оплатить", callback_data="pay_for_wish"),
                InlineKeyboardButton(text="Забронировать", callback_data="bron_for_wish")]]
-    new_one = celery_db.get_celery_by_id(wl_id)
-    await callback.message.answer_photo(
-            photo=new_one['photo'],  # file_id из полученного фото
-            caption=f"Новый товар:\n\n"
-                    f"Название: {new_one['label']}\n"
-                    f"Описание: {new_one['about']}\n"
-                    f"Цена: {new_one['cost']}\n"
-                    f"Категория: {new_one['category']}", reply_markup=InlineKeyboardMarkup(inline_keyboard=markup)
-        )
-    await state.update_data(new_selery=wl_id)
+    status = wishlistitem_db.get_status_by_celery_id(wl_id)
+    if status != "active":
+        await callback.answer(
+        text="Нельзя добавить - уже добавлен другим польозвателес",
+        show_alert=True  # False для верхнего уведомления
+    )
+    else:
+        new_one = celery_db.get_celery_by_id(wl_id)
+        await callback.message.answer_photo(
+                photo=new_one['photo'],  # file_id из полученного фото
+                caption=f"Новый товар:\n\n"
+                        f"Название: {new_one['label']}\n"
+                        f"Описание: {new_one['about']}\n"
+                        f"Цена: {new_one['cost']}\n"
+                        f"Категория: {new_one['category']}", reply_markup=InlineKeyboardMarkup(inline_keyboard=markup)
+            )
+        await state.update_data(new_selery=wl_id)
 
 
 @base_router.callback_query(F.data == "pay_for_wish")
 async def paying_for_celery(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    item_id = data.get("new_celery")
-    await callback.message.answer(str(item_id))
+    item_id = data.get("new_celery")    
     wishlistitem_db.update_item(item_id=item_id, status="оплачено")
     await callback.message.answer("Оплачено")
     list_id = data.get("user_list")
 
     wish_list = wishlist_db.get_wishlist_by_id(list_id)
-    texts = f"Вот лист этого пользователя\nНазвание списка: {wish_list['name']}\nТип: {wish_list['list_type']}\n "
+    texts = f"Вот лист этого пользователя\nНазвание списка: {wish_list['name']}\n "
     items = wishlistitem_db.list_items_by_wishlist(list_id)
     celery_markup = []
     for i in items:
@@ -437,7 +446,7 @@ async def paying_for_celery(callback: CallbackQuery, state: FSMContext):
     list_id = data.get("user_list")
 
     wish_list = wishlist_db.get_wishlist_by_id(list_id)
-    texts = f"Вот лист этого пользователя\nНазвание списка: {wish_list['name']}\nТип: {wish_list['list_type']}\n "
+    texts = f"Вот лист этого пользователя\nНазвание списка: {wish_list['name']}\n "
     items = wishlistitem_db.list_items_by_wishlist(list_id)
     celery_markup = []
     for i in items:
@@ -450,7 +459,6 @@ async def paying_for_celery(callback: CallbackQuery, state: FSMContext):
             celery_name += f" (☑️Бронировано)"
         
         celery_id= celerys["celery_id"]
-        await callback.message.answer(str(celery_id))
         celery_markup.append([InlineKeyboardButton(text=f"{celery_name}", callback_data=f"pres_{celery_id}")])
     
     markup = [[InlineKeyboardButton(text="В меню", callback_data="back_menu")]]

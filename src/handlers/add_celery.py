@@ -37,37 +37,38 @@ class ListFSM(StatesGroup):
 
 @router.callback_query(F.data.startswith("get_celery_for_id_"))
 async def choose_option(callback: CallbackQuery, state: FSMContext):
-    print("Начало работы")
     list_id = str(callback.data).replace("get_celery_for_id_", "", 1)
     await state.set_state(ListFSM.list_id)
     await state.update_data(list_id=list_id)
     markup = [[InlineKeyboardButton(text="Одежда", callback_data="cat_clothes")],
               [InlineKeyboardButton(text="Обувь", callback_data="cat_shoes")],
               [InlineKeyboardButton(text="Косметика", callback_data="cat_cosmetics")],
-              [InlineKeyboardButton(text="Электроника", callback_data="cat_electronics"),],
-              [InlineKeyboardButton(text="Спорт", callback_data="cat_sports")],
-              [InlineKeyboardButton(text="Для детей", callback_data="cat_for_children")],
-              [InlineKeyboardButton(text="Аксессуары", callback_data="cat_aksessuars")],
-              [InlineKeyboardButton(text="Для дома", callback_data="cat_for_home")]
+              [InlineKeyboardButton(text="В меню", callback_data="back")]
+
+            #   [InlineKeyboardButton(text="Электроника", callback_data="cat_electronics"),],
+            #   [InlineKeyboardButton(text="Спорт", callback_data="cat_sports")],
+            #   [InlineKeyboardButton(text="Для детей", callback_data="cat_for_children")],
+            #   [InlineKeyboardButton(text="Аксессуары", callback_data="cat_aksessuars")],
+            #   [InlineKeyboardButton(text="Для дома", callback_data="cat_for_home")]
     ]
     await callback.message.answer(text='Выберите категорию', reply_markup=InlineKeyboardMarkup(inline_keyboard=markup))
 
 
 @router.callback_query(F.data.startswith("cat_"))
-async def get_clothes_category(callback: CallbackQuery):
+async def get_clothes_category(callback: CallbackQuery, state: FSMContext):
         category = str(callback.data).replace("cat_", "", 1)
         all_clothes = celery_db.list_celery_by_category(category)
-        print("Начало работы")
-
-        if all_clothes == []:
-            await callback.message.answer(text="Данная категория пуста")
-        
-        else:
-            for key in all_clothes:
-                markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-                        text=f"{key["label"]}", callback_data=f"get_info_ad{key["celery_id"]}")]])
+        new_file = await state.get_data()
+        list_id = new_file.get("list_id")
+        markup = []
+        for key in all_clothes:
+                markup.append([InlineKeyboardButton(
+                        text=f"{key['label']}", callback_data=f"get_info_ad{key['celery_id']}")])
             
-            await callback.message.answer(text="Вот товары по данной категории", reply_markup=markup)
+        
+        markup.append([InlineKeyboardButton(text=f"Назад в категории", callback_data=f"get_celery_for_id_{list_id}")])
+
+        await callback.message.answer(text="Вот товары по данной категории", reply_markup=InlineKeyboardMarkup(inline_keyboard=markup))
 
 
 
@@ -95,15 +96,20 @@ async def get_plan_info(callback: CallbackQuery):
 
 
 @router.callback_query(F.data.startswith("go_back_to_c"))
-async def return_data_choose(callback: CallbackQuery):
+async def return_data_choose(callback: CallbackQuery, state: FSMContext):
     category = str(callback.data).replace("go_back_to_c", "", 1)
     all_clothes = celery_db.list_celery_by_category(category)
+    new_file = await state.get_data()
+    list_id = new_file.get("list_id")
+    markup = []
     for key in all_clothes:
-            print("Начало работы 3")
-            markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-                    text=f"{key["label"]}", callback_data=f"get_info_ad{key["celery_id"]}")]])
+            markup.append([InlineKeyboardButton(
+                    text=f"{key['label']}", callback_data=f"get_info_ad{key['celery_id']}")])
         
-    await callback.message.answer(text="Вот товары по данной категории", reply_markup=markup)
+    
+    markup.append([InlineKeyboardButton(text=f"Назад в категории", callback_data=f"get_celery_for_id_{list_id}")])
+
+    await callback.message.answer(text="Вот товары по данной категории", reply_markup=InlineKeyboardMarkup(inline_keyboard=markup))
 
 
 @router.callback_query(F.data.startswith("add_celery_"))
@@ -112,52 +118,30 @@ async def add_new_celery_for_user(callback: CallbackQuery, state: FSMContext):
     celery_id = str(callback.data).replace("add_celery_", "", 1)
     data = await state.get_data()
     list_id = data["list_id"]
-    await callback.message.answer(f"{list_id}")
     wishlistitems_db.add_item(wishlist_id=list_id, celery_id=celery_id)
 
-    await callback.message.answer("Добавлено")
+    await callback.answer(text="Добавлено", show_alert=True)
     await callback.answer()
 
     celery = celery_db.get_celery_by_id(celery_id)
     all_clothes = celery_db.list_celery_by_category(celery["category"])
-    print("Начало работы")
 
     if all_clothes == []:
         print("Начало работы 2")
         await callback.message.answer(text="Данная категория пуста")
     
     else:
+        markup = []
         for key in all_clothes:
-            print("Начало работы 3")
-            markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-                    text=f"{key["label"]}", callback_data=f"get_info_ad{key["celery_id"]}")]])
             
-        await callback.message.answer(text="Вот товары по данной категории", reply_markup=markup)
+            markup.append([InlineKeyboardButton(
+                    text=f"{key["label"]}", callback_data=f"get_info_ad{key["celery_id"]}")])
+            
 
-
-
-
-
-
-
-
-@router.callback_query(F.data=="shoes")
-async def get_clothes_category(callback: CallbackQuery):
-    all_clothes = celery_db.list_celery_by_category('clothes')
-    print("Начало работы")
-
-    if all_clothes == []:
-        print("Начало работы 2")
-        await callback.message.answer(text="Данная категория пуста")
-    
-    else:
-        for key in all_clothes:
-            print("Начало работы 3")
-            markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardMarkup(
-                    text=f"{key["label"]}", callback_data=f"{key["celery_id"]}")]])
+        markup.append([InlineKeyboardButton(text=f"Назад в категории", callback_data=f"get_celery_for_id_{list_id}")])
         
-        await callback.message.answer(text="Вот товары по данной категории", reply_markup=markup)
 
+        await callback.message.answer(text="Вот товары по данной категории", reply_markup=InlineKeyboardMarkup(markup))
 
 
 

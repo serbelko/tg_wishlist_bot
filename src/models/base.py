@@ -22,6 +22,8 @@ class User(Base):
         primary_key=True,
         nullable=False
     )
+
+    name = Column("name", String, nullable=False)
     # у пользователя может быть несколько вишлистов
     wishlists = relationship(
         "WishList",
@@ -29,9 +31,12 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
+
+
     def to_dict(self) -> Dict:
         return {
             "user_id": str(self.user_id),
+            "name": str(self.name),
             "wishlists": [wl.to_dict() for wl in self.wishlists]
         }
 

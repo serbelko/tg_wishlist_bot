@@ -3,7 +3,7 @@
 import asyncio
 import os
 
-from aiogram import Bot, Dispatcher, F, types, Router
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import Message, CallbackQuery
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from src.services.creation_scenario import get_get_gpt_info
 from src.repo.db import WishListRepository, UserRepository
 from config.db_session import SessionLocal
-from src.handlers.strings import ALL_TEXT, ALL_BUTTON
+from src.handlers.strings import ALL_TEXT, ALL_BUTTON, LIST_TYPES
 
 db = SessionLocal()
 wishlist_db = WishListRepository(db)
@@ -48,21 +48,46 @@ async def start_create_scenario(callback: CallbackQuery, state: FSMContext):
 async def choose_list_type(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
     await state.set_state(ListCreation.list_type)
-    await message.answer(text="напиши тип")
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Приватный", callback_data="private_choose"),
+        InlineKeyboardButton(text="Общедоступный", callback_data="for_all_choose"),
+
+    ]])
+    await message.answer(text="Выбери тип твоего вишлиста", reply_markup=markup)
 
 
-@router.message(ListCreation.list_type)
-async def end_creation(message: Message, state: FSMContext):
-    await state.update_data(list_type=message.text)
+@router.callback_query(F.data=="private_choose")
+async def end_creation(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(list_type=str(callback.data))
     fsm_data = await state.get_data()
-    user_id = str(message.from_user.id)
-    user_db.add_user(user_id)
+    user_id = str(callback.from_user.id)
+    user_name = str(callback.from_user.full_name)
+    user_db.add_user(user_id, name=user_name)
     name = fsm_data.get('name')
     type = fsm_data.get('list_type')
+    callback.answer()
     wish_list = wishlist_db.create_wishlist(user_id=user_id, name=name, list_type=type)
     markup = [[InlineKeyboardButton(text="В меню", callback_data="back_menu")],
               [InlineKeyboardButton(text="Добавить товары", callback_data=f"get_celery_for_id_{wish_list["id"]}")]]
-    await message.answer(text=f"Вот твой лист\nИмя: {name}\nТип: {type}\n", 
+    await callback.message.answer(text=f"Вот твой лист\nИмя: {name}\nТип: {LIST_TYPES[type]}\n", 
+                         reply_markup=InlineKeyboardMarkup(inline_keyboard=markup))
+    await state.clear()
+
+
+@router.callback_query(F.data=="for_all_choose")
+async def end_creation(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(list_type=str(callback.data))
+    fsm_data = await state.get_data()
+    user_id = str(callback.from_user.id)
+    user_name = str(callback.from_user.full_name)
+    user_db.add_user(user_id, name=user_name)
+    name = fsm_data.get('name')
+    type = fsm_data.get('list_type')
+    callback.answer()
+    wish_list = wishlist_db.create_wishlist(user_id=user_id, name=name, list_type=type)
+    markup = [[InlineKeyboardButton(text="В меню", callback_data="back_menu")],
+              [InlineKeyboardButton(text="Добавить товары", callback_data=f"get_celery_for_id_{wish_list["id"]}")]]
+    await callback.message.answer(text=f"Вот твой лист\nИмя: {name}\nТип: {LIST_TYPES[type]}\n", 
                          reply_markup=InlineKeyboardMarkup(inline_keyboard=markup))
     await state.clear()
 
@@ -78,8 +103,7 @@ async def start_back(callback: CallbackQuery, state: FSMContext):
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=ALL_BUTTON["create_list"], callback_data="create_list_callback")],
         [InlineKeyboardButton(text=ALL_BUTTON["check_my_list"], callback_data="my_list_callback")],
-        [InlineKeyboardButton(text=ALL_BUTTON["check_users"], callback_data="check_users_callback")]
-    ])
+        [InlineKeyboardButton(text=ALL_BUTTON["check_users"], callback_data="check_users_callback")]])
     await callback.message.answer(ALL_TEXT['start_text'], reply_markup=markup)
     await state.clear()
     await callback.answer()
