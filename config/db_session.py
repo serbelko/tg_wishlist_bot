@@ -3,6 +3,7 @@ import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config.config import settings
+from src.models import Base 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -25,6 +26,9 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine
 )
+
+
+Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()

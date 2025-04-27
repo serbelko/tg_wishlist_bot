@@ -1,1 +1,1 @@
-from .base import Base, PlanORM, UserORM
+from .base import Base, Celery, User, WishList, WishListItem
