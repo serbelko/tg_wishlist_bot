@@ -11,8 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 from dotenv import load_dotenv
 
-print("йоу")
-from src.services.creation_scenario import get_get_gpt_info
+from src.services.creation_scenario import ds_answer
 from src.repo.db import WishListRepository, UserRepository, CeleryRepository, WishListItemRepository
 from config.db_session import SessionLocal
 from src.handlers.strings import ALL_TEXT, ALL_BUTTON
@@ -220,28 +219,32 @@ async def celery_category_add(message: Message, state: FSMContext):
                     f"Категория: {data['category']}"
         )
         
-        # Сохраняем в базу
-        new = celery_db.add_celery(
-            photo=data['photo'].file_id,
-            category=data['category'],
-            label=data['label'],
-            about=data['about'],
-            cost=float(data['cost'])
-        )
-        
-        print(new["celery_id"])
-        await message.answer("Товар успешно добавлен!")
 
-        new_one = celery_db.get_celery_by_id(new["celery_id"])
-        await message.answer_photo(
-            photo=new_one['photo'],  # file_id из полученного фото
-            caption=f"Новый товар:\n\n"
-                    f"Название: {new_one['label']}\n"
-                    f"Описание: {new_one['about']}\n"
-                    f"Цена: {new_one['cost']}\n"
-                    f"Категория: {new_one['category']}"
-        )
-        
+        flag = int(ds_answer(data['category'], data['label'], data['about']))
+        if flag == 0:
+            # Сохраняем в базу
+            new = celery_db.add_celery(
+                photo=data['photo'].file_id,
+                category=data['category'],
+                label=data['label'],
+                about=data['about'],
+                cost=float(data['cost'])
+            )
+            
+            await message.answer("Товар успешно добавлен!")
+
+            new_one = celery_db.get_celery_by_id(new["celery_id"])
+            await message.answer_photo(
+                photo=new_one['photo'],  # file_id из полученного фото
+                caption=f"Новый товар:\n\n"
+                        f"Название: {new_one['label']}\n"
+                        f"Описание: {new_one['about']}\n"
+                        f"Цена: {new_one['cost']}\n"
+                        f"Категория: {new_one['category']}"
+            )
+            
+        else:
+            await message.answer("В вашем названии присутствует негатив - уберите его и попробуйте снова")
     except Exception as e:
         await message.answer(f"Произошла ошибка: {str(e)}")
     finally:

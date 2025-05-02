@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     # Прочие настройки, например, для каналов
     channel_backup: int = Field(..., env="CHANNEL_BACKUP")
     db_url: str = Field("sqlite+aiosqlite:///main.db", env="DB_URL")
-    yandex_folder_id: str = Field(..., env="YANDEX_FOLDER_ID")
-    yandex_api_key: str = Field(..., env="YANDEX_API_KEY")
+    API_KEY: str = Field(..., env="API_KEY")
+    MODEL: str = Field(..., env="MODEL")
 
     class Config:
         env_file = ".env"

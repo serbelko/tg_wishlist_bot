@@ -10,9 +10,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 from dotenv import load_dotenv
+from src.services.creation_scenario import list_ds_answer
 
 
-from src.services.creation_scenario import get_get_gpt_info
 from src.repo.db import WishListRepository, UserRepository
 from config.db_session import SessionLocal
 from src.handlers.strings import ALL_TEXT, ALL_BUTTON, LIST_TYPES
@@ -84,12 +84,19 @@ async def end_creation(callback: CallbackQuery, state: FSMContext):
     name = fsm_data.get('name')
     type = fsm_data.get('list_type')
     callback.answer()
-    wish_list = wishlist_db.create_wishlist(user_id=user_id, name=name, list_type=type)
-    markup = [[InlineKeyboardButton(text="В меню", callback_data="back_menu")],
-              [InlineKeyboardButton(text="Добавить товары", callback_data=f"get_celery_for_id_{wish_list["id"]}")]]
-    await callback.message.answer(text=f"Вот твой лист\nИмя: {name}\nТип: {LIST_TYPES[type]}\n", 
-                         reply_markup=InlineKeyboardMarkup(inline_keyboard=markup))
-    await state.clear()
+    
+    flag = int(list_ds_answer(name))
+    if flag == 0:
+
+        wish_list = wishlist_db.create_wishlist(user_id=user_id, name=name, list_type=type)
+        markup = [[InlineKeyboardButton(text="В меню", callback_data="back_menu")],
+                [InlineKeyboardButton(text="Добавить товары", callback_data=f"get_celery_for_id_{wish_list["id"]}")]]
+        await callback.message.answer(text=f"Вот твой лист\nИмя: {name}\nТип: {LIST_TYPES[type]}\n", 
+                            reply_markup=InlineKeyboardMarkup(inline_keyboard=markup))
+        await state.clear()
+
+    else:
+        await callback.message.answer("В вашем назывании содержится негативный контент. Придумайте новое название или сделайте лист приватным")
 
 
 
